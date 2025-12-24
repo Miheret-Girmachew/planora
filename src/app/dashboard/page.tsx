@@ -1,6 +1,7 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams, useRouter } from 'next/navigation'; 
 import { 
   Plus, 
   Sparkles, 
@@ -9,7 +10,8 @@ import {
   Loader2, 
   CheckCircle2,
   ArrowUpRight,
-  Compass 
+  Compass,
+  SearchX 
 } from 'lucide-react';
 
 import { auth } from '@/lib/firebase';
@@ -30,28 +32,35 @@ export default function DashboardPage() {
   const [user, authLoading] = useAuthState(auth); 
   const { folders, loading: foldersLoading } = useFolders(user?.uid, authLoading); 
   
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const searchQuery = searchParams.get('q')?.toLowerCase() || "";
+
+  const filteredFolders = folders.filter(folder => 
+    folder.name.toLowerCase().includes(searchQuery)
+  );
+
   const [isGenerating, setIsGenerating] = useState(false); 
   const [isModalOpen, setIsModalOpen] = useState(false);     
   const [isSummaryOpen, setIsSummaryOpen] = useState(false); 
   const [activeFolder, setActiveFolder] = useState<any>(null); 
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
-
-const handleAddPlan = async (name: string) => {
-if (user) {
-    console.log("Creating folder for user:", user.uid); 
-    const result = await createFolderAction(name, user.uid);
-    if (!result.success) {
-    alert("Backend failed to save. Check Firebase rules.");
+  const handleAddPlan = async (name: string) => {
+    if (user) {
+      const result = await createFolderAction(name, user.uid);
+      if (!result.success) alert("Backend failed to save. Check Firebase rules.");
+    } else {
+      router.push('/login');
     }
-} else {
-    console.error("No user found! Cannot create plan.");
-}
-};
+  };
 
   const handleDeleteFolder = async (id: string) => {
-    await deleteFolderAction(id);
-    setMenuOpenId(null);
+    const confirmDelete = confirm("Permanently remove this journey from the architecture?");
+    if (confirmDelete) {
+      await deleteFolderAction(id);
+      setMenuOpenId(null);
+    }
   };
 
   const handleGenerateRoadmap = () => {
@@ -74,7 +83,7 @@ if (user) {
     return (
       <div className="h-[70vh] w-full flex flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-accent" size={40} />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-20">Synchronizing Workspace...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-20">Syncing Workspace...</p>
       </div>
     );
   }
@@ -102,7 +111,7 @@ if (user) {
         </button>
       </section>
 
-      {folders.length > 0 && (
+      {folders.length > 0 && !searchQuery && (
         <motion.div 
           whileHover={{ y: -5 }}
           className="relative bg-slate-900 dark:bg-indigo-600 p-10 rounded-[3rem] text-white flex flex-col lg:flex-row justify-between items-center gap-8 shadow-2xl shadow-indigo-500/20 overflow-hidden group"
@@ -127,40 +136,36 @@ if (user) {
 
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
-          <h2 className="text-xs font-black uppercase tracking-[0.2em] opacity-30">Active Journeys</h2>
+          <h2 className="text-xs font-black uppercase tracking-[0.2em] opacity-30">
+            {searchQuery ? `Results for "${searchQuery}"` : "Active Journeys"}
+          </h2>
         </div>
 
         {folders.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="h-80 border-2 border-dashed border-foreground/5 rounded-[3rem] flex flex-col items-center justify-center text-center p-10 group transition-colors"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-80 border-2 border-dashed border-foreground/5 rounded-[3rem] flex flex-col items-center justify-center text-center p-10 group">
             <div className="p-6 bg-foreground/[0.02] rounded-full mb-4">
               <Compass size={40} className="opacity-10" />
             </div>
             <h3 className="text-xl font-black opacity-40 tracking-tight">Your workspace is quiet</h3>
-            
             <div className="flex flex-col gap-3 mt-8">
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="bg-foreground text-background px-10 py-4 rounded-2xl font-bold text-sm shadow-xl hover:scale-105 transition-transform"
-              >
+              <button onClick={() => setIsModalOpen(true)} className="bg-foreground text-background px-10 py-4 rounded-2xl font-bold text-sm shadow-xl">
                 + Create Custom Plan
               </button>
-              
-              <button 
-                onClick={handleRestoreSamples}
-                disabled={isGenerating}
-                className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 transition-all disabled:opacity-10"
-              >
-                {isGenerating ? "Seeding..." : "Or Initialize with Samples"}
+              <button onClick={handleRestoreSamples} className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 hover:opacity-100 transition-all">
+                Or Initialize with Samples
               </button>
             </div>
+          </motion.div>
+        ) : filteredFolders.length === 0 ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-64 flex flex-col items-center justify-center text-center opacity-20">
+             <SearchX size={48} strokeWidth={1.5} className="mb-4" />
+             <p className="font-bold text-lg tracking-tight">No matching journeys found.</p>
+             <p className="text-xs uppercase tracking-widest font-black mt-1">Try a different architectural keyword</p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <AnimatePresence mode="popLayout">
-              {folders.map((folder) => (
+              {filteredFolders.map((folder) => (
                 <motion.div
                   key={folder.id}
                   layout
@@ -172,22 +177,17 @@ if (user) {
                   className="group bg-foreground/[0.02] dark:bg-white/[0.03] border border-foreground/5 p-8 rounded-[3rem] hover:bg-white dark:hover:bg-slate-900 transition-all hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] cursor-pointer relative overflow-hidden"
                 >
                   <div className={`absolute top-0 left-0 w-2 h-full ${folder.color || 'bg-indigo-500'} opacity-30`} />
-                  
                   <div className="flex justify-between items-start mb-14">
-                    <div className={`w-14 h-14 rounded-2xl ${folder.color || 'bg-indigo-500'} text-white flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}>
+                    <div className={`w-14 h-14 rounded-2xl ${folder.color || 'bg-indigo-500'} text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
                       <FolderIcon size={28} />
                     </div>
                     <div className="relative">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === folder.id ? null : folder.id); }} 
-                        className="p-2 text-foreground/20 hover:text-foreground hover:bg-foreground/5 rounded-xl transition-all"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === folder.id ? null : folder.id); }} className="p-2 text-foreground/20 hover:text-foreground transition-all">
                         <MoreVertical size={22} />
                       </button>
                       <FolderMenu isOpen={menuOpenId === folder.id} onDelete={() => handleDeleteFolder(folder.id)} />
                     </div>
                   </div>
-                  
                   <h3 className="text-2xl font-black tracking-tighter mb-2 group-hover:text-accent transition-colors">{folder.name}</h3>
                   <div className="flex items-center gap-3">
                     <p className="text-[10px] font-black opacity-30 uppercase tracking-widest">{folder.items || 0} Units</p>
@@ -206,11 +206,7 @@ if (user) {
 
       <NewPlanModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={handleAddPlan} />
       <SummaryModal isOpen={isSummaryOpen} onClose={() => setIsSummaryOpen(false)} />
-      <FolderDetailModal 
-        folder={activeFolder} 
-        isOpen={!!activeFolder} 
-        onClose={() => setActiveFolder(null)} 
-      />
+      <FolderDetailModal folder={activeFolder} isOpen={!!activeFolder} onClose={() => setActiveFolder(null)} />
     </div>
   );
 }

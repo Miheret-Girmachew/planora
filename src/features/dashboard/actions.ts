@@ -13,18 +13,18 @@ import { revalidatePath } from "next/cache";
 export async function createFolderAction(name: string, userId: string) {
   try {
     await addDoc(collection(db, "folders"), {
-      name,
-      content: "", 
-      userId,
-      parentId: null,
+      name: name,
+      userId: userId, 
       createdAt: serverTimestamp(),
-      color: "bg-indigo-500",
       items: 0,
-      trend: "Just Started"
+      trend: "Active",
+      color: "bg-indigo-500"
     });
-    revalidatePath("/dashboard");
     return { success: true };
-  } catch (e) { return { success: false }; }
+  } catch (e) {
+    console.error(e);
+    return { success: false };
+  }
 }
 
 export async function updateFolderContentAction(folderId: string, content: string) {
