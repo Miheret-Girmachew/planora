@@ -17,7 +17,12 @@ export const authService = {
     return userCredential;
   },
 
-  logout: async () => {
-    return await signOut(auth);
+ logout: async () => {
+    try {
+      await signOut(auth);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error };
+    }
   }
 };

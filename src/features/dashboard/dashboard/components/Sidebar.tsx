@@ -23,23 +23,16 @@ export function Sidebar() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    const confirmed = window.confirm("Are you sure you want to exit Planora?");
+    const confirmed = confirm("Are you sure you want to exit your workspace?");
     if (!confirmed) return;
 
     setIsLoggingOut(true);
-
-    try {
-      const result = await authService.logout();
-      
-      if (result.success) {
-     
-        window.location.href = "/"; 
-      } else {
-        throw new Error("Sign out failed");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-      alert("An error occurred during sign out. Please refresh the page.");
+    const result = await authService.logout();
+    
+    if (result.success) {
+      router.push('/');
+    } else {
+      alert("Failed to sign out. Please try again.");
       setIsLoggingOut(false);
     }
   };
